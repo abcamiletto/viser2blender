@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+src/viser2blender/__init__.py
+src/viser2blender/__main__.py
+src/viser2blender/_bpy_backend.py
+src/viser2blender/_cli.py
+src/viser2blender/_normalize.py
+src/viser2blender/_recording.py
+src/viser2blender/_types.py
+src/viser2blender.egg-info/PKG-INFO
+src/viser2blender.egg-info/SOURCES.txt
+src/viser2blender.egg-info/dependency_links.txt
+src/viser2blender.egg-info/entry_points.txt
+src/viser2blender.egg-info/requires.txt
+src/viser2blender.egg-info/top_level.txt
+tests/test_blender.py
