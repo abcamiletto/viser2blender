@@ -1,2 +1,0 @@
-[console_scripts]
-viser2blender = viser2blender._cli:main
