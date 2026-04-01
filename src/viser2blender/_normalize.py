@@ -510,6 +510,7 @@ def _target_node(
         allow_empty=True,
     )
     canonical_name = _canonical_name(name)
+    message_prefix = f"{message_type} at t={time_value:.6f}"
     active_id = state.active_by_path.get(canonical_name)
     if active_id is not None:
         return state.nodes[active_id]
@@ -518,7 +519,7 @@ def _target_node(
             state, canonical_name, frame=frame, time_value=time_value
         )
     raise UnsupportedViserMessageError(
-        f"{message_type} at t={time_value:.6f} references unknown node {canonical_name!r}."
+        f"{message_prefix} references unknown node {canonical_name!r}."
     )
 
 
@@ -600,10 +601,11 @@ def _decode_point_cloud_payload(
         points=_decode_point_cloud_points(props.get("points"), precision=precision),
         precision=precision,
     )
+    point_count = len(geometry.points)
     style = MaterialStyle(
         color=cast(
             ColorValue,
-            _decode_color(props.get("colors"), item_count=len(geometry.points)),
+            _decode_color(props.get("colors"), item_count=point_count),
         ),
         point_size=_require_float(props, "point_size"),
         point_shape=_require_str(props, "point_shape"),
@@ -615,12 +617,11 @@ def _decode_line_segments_payload(
     props: dict[str, Any],
 ) -> tuple[GeometryData | None, MaterialStyle]:
     geometry = LineSegmentsGeometry(points=_decode_line_points(props.get("points")))
+    segment_count = len(geometry.points)
     style = MaterialStyle(
         color=cast(
             ColorValue,
-            _decode_color(
-                props.get("colors"), item_count=len(geometry.points), item_width=2
-            ),
+            _decode_color(props.get("colors"), item_count=segment_count, item_width=2),
         ),
         line_width=_require_float(props, "line_width"),
     )
@@ -753,9 +754,13 @@ def _decode_point_cloud_points(value: Any, *, precision: str) -> list[list[float
 def _decode_line_points(value: Any) -> list[list[list[float]]]:
     data = _bytes_or_array(value, dtype=np.float32)
     if data.ndim == 1:
-        if data.size % 6 != 0:
+        segment_width = 6
+        segment_layout = f"{segment_width} values per segment"
+        value_count = data.size
+        if data.size % segment_width != 0:
             raise UnsupportedViserMessageError(
-                f"Expected line segment buffer with 6 values per segment, got {data.size}."
+                f"Expected line segment buffer with {segment_layout}, "
+                f"got {value_count}."
             )
         data = data.reshape(-1, 2, 3)
     if data.ndim != 3 or data.shape[1:] != (2, 3):
@@ -820,9 +825,11 @@ def _decode_array(
 ) -> list[list[float]] | list[list[int]]:
     data = _bytes_or_array(value, dtype=dtype)
     if data.ndim == 1:
+        value_count = data.size
+        row_shape = f"{dims}-wide rows"
         if data.size % dims != 0:
             raise UnsupportedViserMessageError(
-                f"Expected a flat buffer divisible into {dims}-wide rows, got {data.size}."
+                f"Expected a flat buffer divisible into {row_shape}, got {value_count}."
             )
         data = data.reshape(-1, dims)
     if data.ndim != 2 or data.shape[1] != dims:

@@ -40,14 +40,15 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
           git fetch --tags --force
+          needs_tag=true
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "needs_tag=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_tag=true" >> "$GITHUB_OUTPUT"
+            needs_tag=false
           fi
+          echo "needs_tag=$needs_tag" >> "$GITHUB_OUTPUT"
 
           pypi_url="https://pypi.org/pypi/${PACKAGE_NAME}/json"
           status_code="$(curl -LsS -o pypi.json -w '%{http_code}' "$pypi_url")"
+          needs_publish=true
           if [ "$status_code" = "200" ] && python - "$version" <<'PY'
           import json
           import sys
@@ -59,10 +60,15 @@ jobs:
           raise SystemExit(0 if version in releases else 1)
           PY
           then
-            echo "needs_publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_publish=true" >> "$GITHUB_OUTPUT"
+            needs_publish=false
           fi
+          echo "needs_publish=$needs_publish" >> "$GITHUB_OUTPUT"
+
+          needs_release=false
+          if [ "$needs_tag" = "true" ] || [ "$needs_publish" = "true" ]; then
+            needs_release=true
+          fi
+          echo "needs_release=$needs_release" >> "$GITHUB_OUTPUT"
       - name: Push tag
         if: steps.version.outputs.needs_tag == 'true'
         run: |
@@ -71,7 +77,7 @@ jobs:
           git tag "${{ steps.version.outputs.tag }}"
           git push origin "${{ steps.version.outputs.tag }}"
       - name: Build
-        if: steps.version.outputs.needs_tag == 'true' || steps.version.outputs.needs_publish == 'true'
+        if: steps.version.outputs.needs_release == 'true'
         run: uv build
       - name: Publish to PyPI
         if: steps.version.outputs.needs_publish == 'true'
@@ -84,7 +90,7 @@ jobs:
             uv publish
           fi
       - name: Create GitHub release
-        if: steps.version.outputs.needs_tag == 'true' || steps.version.outputs.needs_publish == 'true'
+        if: steps.version.outputs.needs_release == 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
