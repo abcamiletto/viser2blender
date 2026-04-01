@@ -12,7 +12,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    environment: pypi
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,22 +43,15 @@ jobs:
             echo "needs_tag=true" >> "$GITHUB_OUTPUT"
           fi
 
-          if python - "$PACKAGE_NAME" "$version" <<'PY'
+          pypi_url="https://pypi.org/pypi/${PACKAGE_NAME}/json"
+          status_code="$(curl -LsS -o pypi.json -w '%{http_code}' "$pypi_url")"
+          if [ "$status_code" = "200" ] && python - "$version" <<'PY'
           import json
           import sys
-          import urllib.error
-          import urllib.request
 
-          package_name, version = sys.argv[1:3]
-          try:
-              with urllib.request.urlopen(
-                  f"https://pypi.org/pypi/{package_name}/json"
-              ) as response:
-                  releases = json.load(response)["releases"]
-          except urllib.error.HTTPError as exc:
-              if exc.code == 404:
-                  raise SystemExit(1)
-              raise
+          version = sys.argv[1]
+          with open("pypi.json", "r", encoding="utf-8") as f:
+              releases = json.load(f)["releases"]
 
           raise SystemExit(0 if version in releases else 1)
           PY
