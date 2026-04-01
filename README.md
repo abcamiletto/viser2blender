@@ -1,17 +1,17 @@
 # viser2blender
 
-`viser2blender` converts a strict supported subset of `.viser` recordings into
-`.blend` files through `bpy`.
+Convert a strict supported subset of `.viser` recordings into `.blend` files.
 
-It is packaged separately from `viser4d` because it requires `numpy<2` and
-`bpy>=5.1.0`.
+Requirements:
+- Python 3.13
+- `bpy>=5.1.0`
 
-Quick manual check:
+Usage:
 
 ```bash
-cd ../viser2blender
-uv run --python 3.13 viser2blender \
-  tests/assets/blender_showcase.viser \
-  /tmp/blender-showcase.blend \
-  --overwrite
+uvx --python 3.13 viser2blender input.viser output.blend --overwrite
 ```
+
+Optional flags:
+- `--validate-only`
+- `--emit-manifest manifest.json`
