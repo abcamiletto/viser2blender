@@ -11,11 +11,11 @@ from ._recording import load_viser_recording
 
 def main() -> None:
     args = _parse_args()
-    manifest = normalize_recording(load_viser_recording(args.input_path)).to_jsonable()
+    manifest = normalize_recording(load_viser_recording(args.input_path))
 
     if args.emit_manifest is not None:
         _check_writable(args.emit_manifest, overwrite=args.overwrite)
-        args.emit_manifest.write_text(json.dumps(manifest, indent=2))
+        args.emit_manifest.write_text(json.dumps(manifest.to_jsonable(), indent=2))
 
     if args.validate_only:
         return
@@ -29,7 +29,7 @@ def _parse_args() -> argparse.Namespace:
         prog="viser2blender",
         description=(
             "Convert a strict supported subset of .viser recordings into .blend "
-            "files. Requires bpy>5.0.0."
+            "files. Requires bpy>=5.1.0."
         ),
     )
     parser.add_argument("input_path", type=Path, help="Input .viser recording.")
