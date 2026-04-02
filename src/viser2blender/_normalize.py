@@ -32,6 +32,7 @@ SUPPORTED_MESSAGE_TYPES = {
     "BackgroundImageMessage",
     "FrameMessage",
     "MeshMessage",
+    "BoxMessage",
     "PointCloudMessage",
     "LineSegmentsMessage",
     "IcosphereMessage",
@@ -47,6 +48,7 @@ SUPPORTED_MESSAGE_TYPES = {
 CREATE_MESSAGE_TYPES = {
     "FrameMessage": "frame",
     "MeshMessage": "mesh",
+    "BoxMessage": "mesh",
     "PointCloudMessage": "point_cloud",
     "LineSegmentsMessage": "line_segments",
     "IcosphereMessage": "icosphere",
@@ -164,7 +166,7 @@ def _handle_create_message(
         )
 
     kind = CREATE_MESSAGE_TYPES[message_type]
-    geometry, style = CREATE_DECODERS[kind](cast(dict[str, Any], props))
+    geometry, style = CREATE_DECODERS[message_type](cast(dict[str, Any], props))
     _coerce_epoch_for_create(
         state,
         name=name,
@@ -574,17 +576,46 @@ def _decode_mesh_payload(
         vertices=_decode_vertices(props.get("vertices")),
         faces=_decode_faces(props.get("faces")),
     )
-    style = MaterialStyle(
-        color=cast(ColorValue, _decode_color(props.get("color"), item_count=None)),
-        scale=_decode_scale(props.get("scale")),
-        wireframe=_require_bool(props, "wireframe"),
-        opacity=_optional_float(props.get("opacity")),
-        flat_shading=_optional_bool(props.get("flat_shading")),
-        side=_optional_side(props.get("side")),
-        material=_optional_material(props.get("material")),
-        cast_shadow=_optional_bool(props.get("cast_shadow")),
-        receive_shadow=_optional_bool(props.get("receive_shadow")),
+    style = _decode_surface_style(props, include_scale=True)
+    return geometry, style
+
+
+def _decode_box_payload(
+    props: dict[str, Any],
+) -> tuple[GeometryData | None, MaterialStyle]:
+    dimensions = _vector3(
+        props.get("dimensions"),
+        field="dimensions",
+        message_type="BoxMessage",
     )
+    half_x, half_y, half_z = (dimension / 2.0 for dimension in dimensions)
+    geometry = MeshGeometry(
+        vertices=[
+            [-half_x, -half_y, -half_z],
+            [half_x, -half_y, -half_z],
+            [half_x, half_y, -half_z],
+            [-half_x, half_y, -half_z],
+            [-half_x, -half_y, half_z],
+            [half_x, -half_y, half_z],
+            [half_x, half_y, half_z],
+            [-half_x, half_y, half_z],
+        ],
+        faces=[
+            [0, 1, 2],
+            [0, 2, 3],
+            [4, 6, 5],
+            [4, 7, 6],
+            [0, 4, 5],
+            [0, 5, 1],
+            [1, 5, 6],
+            [1, 6, 2],
+            [2, 6, 7],
+            [2, 7, 3],
+            [3, 7, 4],
+            [3, 4, 0],
+        ],
+    )
+    style = _decode_surface_style(props, include_scale=True)
     return geometry, style
 
 
@@ -630,16 +661,7 @@ def _decode_icosphere_payload(
         radius=_require_float(props, "radius"),
         subdivisions=_require_int(props, "subdivisions"),
     )
-    style = MaterialStyle(
-        color=cast(ColorValue, _decode_color(props.get("color"), item_count=None)),
-        wireframe=_require_bool(props, "wireframe"),
-        opacity=_optional_float(props.get("opacity")),
-        flat_shading=_optional_bool(props.get("flat_shading")),
-        side=_optional_side(props.get("side")),
-        material=_optional_material(props.get("material")),
-        cast_shadow=_optional_bool(props.get("cast_shadow")),
-        receive_shadow=_optional_bool(props.get("receive_shadow")),
-    )
+    style = _decode_surface_style(props)
     return geometry, style
 
 
@@ -651,16 +673,7 @@ def _decode_cylinder_payload(
         height=_require_float(props, "height"),
         radial_segments=_require_int(props, "radial_segments"),
     )
-    style = MaterialStyle(
-        color=cast(ColorValue, _decode_color(props.get("color"), item_count=None)),
-        wireframe=_require_bool(props, "wireframe"),
-        opacity=_optional_float(props.get("opacity")),
-        flat_shading=_optional_bool(props.get("flat_shading")),
-        side=_optional_side(props.get("side")),
-        material=_optional_material(props.get("material")),
-        cast_shadow=_optional_bool(props.get("cast_shadow")),
-        receive_shadow=_optional_bool(props.get("receive_shadow")),
-    )
+    style = _decode_surface_style(props)
     return geometry, style
 
 
@@ -903,6 +916,25 @@ def _frame_for_time(fps: float, time_value: float) -> int:
     return max(int(round(time_value * fps)) + 1, 1)
 
 
+def _decode_surface_style(
+    props: dict[str, Any],
+    *,
+    include_scale: bool = False,
+) -> MaterialStyle:
+    scale = _decode_scale(props.get("scale")) if include_scale else None
+    return MaterialStyle(
+        color=cast(ColorValue, _decode_color(props.get("color"), item_count=None)),
+        scale=scale,
+        wireframe=_require_bool(props, "wireframe"),
+        opacity=_optional_float(props.get("opacity")),
+        flat_shading=_optional_bool(props.get("flat_shading")),
+        side=_optional_side(props.get("side")),
+        material=_optional_material(props.get("material")),
+        cast_shadow=_optional_bool(props.get("cast_shadow")),
+        receive_shadow=_optional_bool(props.get("receive_shadow")),
+    )
+
+
 def _require_bool(props: dict[str, Any], key: str) -> bool:
     value = props.get(key)
     if not isinstance(value, bool):
@@ -999,12 +1031,13 @@ def _current_geometry(manifest: NodeManifest) -> GeometryData | None:
 
 
 CREATE_DECODERS: dict[str, CreateDecoder] = {
-    "frame": _decode_frame_payload,
-    "mesh": _decode_mesh_payload,
-    "point_cloud": _decode_point_cloud_payload,
-    "line_segments": _decode_line_segments_payload,
-    "icosphere": _decode_icosphere_payload,
-    "cylinder": _decode_cylinder_payload,
+    "FrameMessage": _decode_frame_payload,
+    "MeshMessage": _decode_mesh_payload,
+    "BoxMessage": _decode_box_payload,
+    "PointCloudMessage": _decode_point_cloud_payload,
+    "LineSegmentsMessage": _decode_line_segments_payload,
+    "IcosphereMessage": _decode_icosphere_payload,
+    "CylinderMessage": _decode_cylinder_payload,
 }
 
 UPDATE_DECODERS: dict[str, UpdateDecoder] = {
