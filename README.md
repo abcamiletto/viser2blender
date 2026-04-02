@@ -9,7 +9,7 @@ Requirements:
 Usage:
 
 ```bash
-uvx --python 3.13 viser2blender input.viser output.blend --overwrite
+uvx viser2blender input.viser output.blend --overwrite
 ```
 
 Optional flags:
