@@ -24,7 +24,6 @@ from ._types import (
     VisibilityKeyframe,
 )
 
-RUNTIME_MARKER = "/*__VISER4D_RUNTIME__*/"
 ROOT_NODE_ID = "#0"
 
 
@@ -526,14 +525,10 @@ def _target_node(
 def _ignore_runtime_message(
     _state: _NormalizerState,
     _frame: int,
-    time_value: float,
-    message: dict[str, Any],
+    _time_value: float,
+    _message: dict[str, Any],
 ) -> None:
-    source = message.get("source")
-    if not isinstance(source, str) or not source.startswith(RUNTIME_MARKER):
-        raise UnsupportedViserMessageError(
-            f"Unsupported RunJavascriptMessage at t={time_value:.6f}."
-        )
+    return
 
 
 def _ignore_background_message(
